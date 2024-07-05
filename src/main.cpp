@@ -17,12 +17,12 @@ SoftwareSerial pinSerial(RXpin, TXpin);
 
 // task interval
 #define sendInterval 15000L
-#define recieveInterval 500L
+#define sendDataInterval 1000L
 #define ledTimeout 1000L
 
 // ThingSpeak account
-unsigned long myChannelNumber = 2563638;
-const char *myWriteAPIKey = "AWNAQ8XKBYBX9B71";
+unsigned long myChannelNumber = 2589091;
+const char *myWriteAPIKey = "POIF24AL3SG369PE";
 
 // wifi information
 const char *ssid = "RizalNet-Brobot";
@@ -31,33 +31,42 @@ const char *password = "blackbird16111992";
 // variables used
 int tdsValue, tempValue;
 float phValue;
-JsonDocument doc;
-int ledDataStatus = 0;
+JsonDocument docRec, docSend;
+int ledDataStatus = 0, thingspeakStatus;
 String message2;
 
 // prototype function
-void recieveData();
 void sendData();
+void sendDataToInternet();
 
 // define task for multitasking
-Task taskReceveData(recieveInterval, TASK_FOREVER, &recieveData);
-Task taskSendData(sendInterval, TASK_FOREVER, &sendData);
+Task tasksendData(sendDataInterval, TASK_FOREVER, &sendData);
+Task taskSendDataToInternet(sendInterval, TASK_FOREVER, &sendDataToInternet);
 const unsigned long interval = 100;
 unsigned long previousTime = 0;
 
-// recieve data from serial
+// send data to software serial
+void sendData()
+{
+  docSend["sig"] = WiFi.RSSI();
+  docSend["thstat"] = thingspeakStatus;
+  serializeJson(docSend, pinSerial);
+  docSend.clear();
+}
+
+// recieve data from software serial
 void recieveData()
 {
-  // String message;
-  // if (pinSerial.available())
-  // {
-  //   message = pinSerial.readString();
-  // }
-  // deserializeJson(doc, message);
-  // tdsValue = doc["tds"];
-  // temperature = doc["temp"];
-  // Serial.println("Pesan1 :" + message);
-  // doc.clear();
+  if (pinSerial.available())
+  {
+    message2 = pinSerial.readString();
+    Serial.println("Pesan2 :" + message2);
+  }
+  deserializeJson(docRec, message2);
+  tdsValue = docRec["tds"];
+  tempValue = docRec["temp"];
+  phValue = docRec["ph"];
+  docRec.clear();
 }
 
 // connect wifi function
@@ -94,15 +103,15 @@ void onWifiDisconnect(const WiFiEventStationModeDisconnected)
 }
 
 // send data to ThingSpeak
-void sendData()
+void sendDataToInternet()
 {
   if (tdsValue != 0 && tempValue != 0 && phValue != 0)
   {
-    ThingSpeak.setField(1, tdsValue);
-    ThingSpeak.setField(2, tempValue);
-    ThingSpeak.setField(3, phValue);
-    int status = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
-    if (status == 200)
+    ThingSpeak.setField(2, tdsValue);
+    ThingSpeak.setField(3, tempValue);
+    ThingSpeak.setField(1, phValue);
+    thingspeakStatus = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+    if (thingspeakStatus == 200)
     {
       Serial.println("Channel update successful.");
       ledDataStatus = 2;
@@ -110,7 +119,7 @@ void sendData()
     else
     {
       ledDataStatus = 3;
-      Serial.println("Problem updating channel. HTTP error code " + String(status));
+      Serial.println("Problem updating channel. HTTP error code " + String(thingspeakStatus));
       ledDataStatus = 1;
     }
   }
@@ -133,16 +142,17 @@ void setup()
   wifiDisconnectHandler;
   WiFi.onStationModeDisconnected(onWifiDisconnect);
   ThingSpeak.begin(client);
-  userScheduler.addTask(taskReceveData);
-  userScheduler.addTask(taskSendData);
-  taskReceveData.enable();
-  taskSendData.enable();
+  userScheduler.addTask(tasksendData);
+  userScheduler.addTask(taskSendDataToInternet);
+  taskSendDataToInternet.enable();
+  tasksendData.enable();
 }
 
 void loop()
 {
   // put your main code here, to run repeatedly:
   userScheduler.execute();
+  recieveData();
 
   if (ledDataStatus == 1)
   {
@@ -166,15 +176,4 @@ void loop()
   {
     digitalWrite(pinLedData, LOW);
   }
-
-  if (pinSerial.available())
-  {
-    message2 = pinSerial.readString();
-    Serial.println("Pesan2 :" + message2);
-  }
-  deserializeJson(doc, message2);
-  tdsValue = doc["tds"];
-  tempValue = doc["temp"];
-  phValue = doc["ph"];
-  doc.clear();
 }
