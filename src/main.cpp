@@ -17,7 +17,7 @@ SoftwareSerial pinSerial(RXpin, TXpin);
 
 // task interval
 #define sendInterval 15000L
-#define sendDataInterval 1000L
+#define sendDataInterval 2000L
 #define ledTimeout 1000L
 
 // ThingSpeak account
@@ -141,6 +141,15 @@ void setup()
   digitalWrite(pinLedSinyal, HIGH);
   wifiDisconnectHandler;
   WiFi.onStationModeDisconnected(onWifiDisconnect);
+  Serial.print("Waiting for serial connection ..");
+  while (!pinSerial.available())
+  {
+    Serial.print('.');
+    delay(500);
+    digitalWrite(pinLedData, !digitalRead(pinLedData));
+  }
+  Serial.println("Device Connected!");
+  digitalWrite(pinLedData, LOW);
   ThingSpeak.begin(client);
   userScheduler.addTask(tasksendData);
   userScheduler.addTask(taskSendDataToInternet);
