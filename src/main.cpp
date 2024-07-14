@@ -5,6 +5,8 @@
 #include <ThingSpeak.h>
 #include <TaskScheduler.h>
 #include <SoftwareSerial.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 #define RXpin D1
 #define TXpin D2
@@ -13,11 +15,14 @@
 
 Scheduler userScheduler;
 WiFiClient client;
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org");
 SoftwareSerial pinSerial(RXpin, TXpin);
 
 // task interval
 #define sendInterval 15000L
 #define sendDataInterval 2000L
+#define getTimeDateInterval 10000L
 #define ledTimeout 1000L
 
 // ThingSpeak account
@@ -29,27 +34,54 @@ const char *ssid = "RizalNet-Brobot";
 const char *password = "blackbird16111992";
 
 // variables used
-int tdsValue, tempValue;
+int tdsValue, tempValue, currentHours, currentMinutes, currentDays, currentMonths, currentYears, byear;
 float phValue;
 JsonDocument docRec, docSend;
 int ledDataStatus = 0, thingspeakStatus;
 String message2;
+String weekDays[7]={"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+
 
 // prototype function
 void sendData();
 void sendDataToInternet();
+void getTimeDate();
 
 // define task for multitasking
 Task tasksendData(sendDataInterval, TASK_FOREVER, &sendData);
 Task taskSendDataToInternet(sendInterval, TASK_FOREVER, &sendDataToInternet);
+Task taskGetTimeDate(getTimeDateInterval, TASK_FOREVER, &getTimeDate);
 const unsigned long interval = 100;
-unsigned long previousTime = 0;
+unsigned long previousTime = 0, epochTime;
+
+// get date from udp time
+void getTimeDate()
+{
+  timeClient.update();
+  currentMinutes = timeClient.getMinutes();
+  currentHours = timeClient.getHours();
+  epochTime = timeClient.getEpochTime();
+  taskGetTimeDate.delay(2000);
+  if (epochTime != 0 && epochTime != 1)
+  {
+      struct tm *ptm = gmtime ((time_t *)&epochTime);
+      currentDays = ptm->tm_mday;
+      currentMonths = ptm->tm_mon+1;
+      byear = ptm->tm_year+1900;
+      currentYears = ("%2d\n", byear % 100);
+  }
+}
 
 // send data to software serial
 void sendData()
 {
   docSend["sig"] = WiFi.RSSI();
   docSend["thstat"] = thingspeakStatus;
+  docSend["timeMin"] = currentMinutes;
+  docSend["timeHour"] = currentHours;
+  docSend["currentDays"] = currentDays;
+  docSend["currentMonths"] = currentMonths;
+  docSend["currentYears"] = currentYears;
   serializeJson(docSend, pinSerial);
   docSend.clear();
 }
@@ -114,13 +146,13 @@ void sendDataToInternet()
     if (thingspeakStatus == 200)
     {
       Serial.println("Channel update successful.");
-      ledDataStatus = 2;
+      // ledDataStatus = 2;
     }
     else
     {
       ledDataStatus = 3;
       Serial.println("Problem updating channel. HTTP error code " + String(thingspeakStatus));
-      ledDataStatus = 1;
+      // ledDataStatus = 1;
     }
   }
 }
@@ -151,10 +183,14 @@ void setup()
   Serial.println("Device Connected!");
   digitalWrite(pinLedData, LOW);
   ThingSpeak.begin(client);
+  timeClient.begin();
+  timeClient.setTimeOffset(25200);
   userScheduler.addTask(tasksendData);
   userScheduler.addTask(taskSendDataToInternet);
+  userScheduler.addTask(taskGetTimeDate);
   taskSendDataToInternet.enable();
   tasksendData.enable();
+  taskGetTimeDate.enable();
 }
 
 void loop()
