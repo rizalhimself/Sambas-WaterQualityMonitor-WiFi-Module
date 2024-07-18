@@ -39,8 +39,7 @@ float phValue;
 JsonDocument docRec, docSend;
 int ledDataStatus = 0, thingspeakStatus;
 String message2;
-String weekDays[7]={"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-
+String weekDays[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
 // prototype function
 void sendData();
@@ -64,24 +63,24 @@ void getTimeDate()
   taskGetTimeDate.delay(2000);
   if (epochTime != 0 && epochTime != 1)
   {
-      struct tm *ptm = gmtime ((time_t *)&epochTime);
-      currentDays = ptm->tm_mday;
-      currentMonths = ptm->tm_mon+1;
-      byear = ptm->tm_year+1900;
-      currentYears = ("%2d\n", byear % 100);
+    struct tm *ptm = gmtime((time_t *)&epochTime);
+    currentDays = ptm->tm_mday;
+    currentMonths = ptm->tm_mon + 1;
+    byear = ptm->tm_year + 1900;
+    currentYears = ("%2d\n", byear % 100);
   }
 }
 
 // send data to software serial
 void sendData()
 {
-  docSend["sig"] = WiFi.RSSI();
-  docSend["thstat"] = thingspeakStatus;
-  docSend["timeMin"] = currentMinutes;
-  docSend["timeHour"] = currentHours;
-  docSend["currentDays"] = currentDays;
-  docSend["currentMonths"] = currentMonths;
-  docSend["currentYears"] = currentYears;
+  docSend["sg"] = WiFi.RSSI();
+  docSend["tps"] = thingspeakStatus;
+  docSend["tm"] = currentMinutes;
+  docSend["th"] = currentHours;
+  docSend["cd"] = currentDays;
+  docSend["cm"] = currentMonths;
+  docSend["cy"] = currentYears;
   serializeJson(docSend, pinSerial);
   docSend.clear();
 }
